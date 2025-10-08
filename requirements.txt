@@ -10,3 +10,8 @@ pytz
 yfinance
 pandas
 numpy
+alpaca-py
+cryptography
+fastapi
+uvicorn[standard]
+pydantic

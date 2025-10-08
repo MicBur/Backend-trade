@@ -20,9 +20,12 @@
 | **Market Data** | `/market/*` (4 endpoints) | ✅ |
 | **Performance** | `/portfolio/performance`, `/portfolio/performance/summary` | ✅ |
 | **AI/System** | `/ai/grok-insights`, `/system/database-stats` | ✅ |
+| **HybridBot** | `/bot/*` (6 endpoints) | ✅ NEW |
 | **Legacy** | `/portfolio/summary`, `/portfolio/positions`, `/trade/status` | ✅ |
 
-**Total:** 20 REST endpoints
+**Total:** 26 REST endpoints
+
+**NEW:** HybridBot Trading API - Siehe [HYBRIDBOT_API.md](HYBRIDBOT_API.md) für Details
 
 ---
 

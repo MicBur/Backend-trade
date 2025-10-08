@@ -14,6 +14,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
+# Import Bot Router
+from bot_router import router as bot_router
+
 # Redis Connection
 redis_host = os.getenv("REDIS_HOST", "redis")
 redis_port = int(os.getenv("REDIS_PORT", 6379))
@@ -48,6 +51,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include Bot Router
+app.include_router(bot_router)
 
 
 def _get_db_config() -> Dict[str, object]:
