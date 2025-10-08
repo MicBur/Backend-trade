@@ -1,0 +1,97 @@
+🔄 REDIS INTEGRATION FÜR AUTOTRADING BACKEND - DRINGEND
+
+Hallo! Das Frontend kommuniziert jetzt über Redis mit dem Backend. Bitte implementiere die Redis-Integration:
+
+📋 REDIS KEYS DIE DAS FRONTEND SCHREIBT:
+
+```redis
+# Wenn AutoTrading aktiviert wird:
+autotrading:enabled = {
+    "enabled": true,
+    "buy_threshold_pct": 0.05,
+    "sell_threshold_pct": 0.05,
+    "max_position_per_trade": 1,
+    "strategy": "CONSERVATIVE",
+    "timestamp": "2025-09-26T13:15:30.123Z",
+    "source": "frontend_ui",
+    "market_hours_check": true,
+    "session_id": "frontend_1727354130123",
+    "trading_hours": {
+        "market_open": "09:30",
+        "market_close": "16:00", 
+        "timezone": "America/New_York"
+    }
+}
+
+autotrading:status = "ACTIVE"
+autotrading:timestamp = "2025-09-26T13:15:30.123Z"
+
+# Wenn AutoTrading gestoppt wird:
+DEL autotrading:enabled
+autotrading:status = "STOPPED"
+autotrading:stopped_at = "2025-09-26T16:00:00.000Z"
+```
+
+🎯 BACKEND AUFGABEN:
+
+1. Redis Monitoring Loop:
+   ```python
+   import redis
+   import json
+   import threading
+   
+   def monitor_autotrading():
+       r = redis.Redis(host='localhost', port=6380, password='pass123')
+       
+       while True:
+           try:
+               # Check for AutoTrading commands
+               if r.exists('autotrading:enabled'):
+                   config = json.loads(r.get('autotrading:enabled'))
+                   if config['enabled'] and config['source'] == 'frontend_ui':
+                       # START AUTOTRADING
+                       start_autotrading_with_config(config)
+               
+               elif r.get('autotrading:status') == b'STOPPED':
+                   # STOP AUTOTRADING  
+                   stop_all_autotrading()
+                   
+           except Exception as e:
+               print(f"Redis monitoring error: {e}")
+           
+           time.sleep(5)  # Check every 5 seconds
+   ```
+
+2. Market Hours Integration:
+   - Config enthält `trading_hours` und `market_hours_check: true`
+   - Backend soll auch nochmal Marktzeiten prüfen
+   - Bei geschlossenem Markt: AutoTrading pausieren
+
+3. Status Feedback:
+   ```python
+   # Backend schreibt Status zurück:
+   r.set('autotrading:backend_status', 'RUNNING')
+   r.set('autotrading:last_trade', json.dumps(trade_info))
+   r.set('autotrading:active_positions', json.dumps(positions))
+   ```
+
+4. Session Management:
+   - `session_id` vom Frontend beachten
+   - Nur eine AutoTrading Session gleichzeitig
+   - Bei neuem `session_id`: alte Session stoppen
+
+🔧 REDIS CONNECTION:
+- Host: localhost (oder Docker internal IP)
+- Port: 6380
+- Password: pass123
+
+🚨 WICHTIG:
+- Frontend startet AutoTrading → Redis Key wird gesetzt
+- Backend MUSS kontinuierlich Redis überwachen
+- Bei `autotrading:enabled` → echtes Trading starten
+- Bei `DEL autotrading:enabled` → sofort stoppen
+
+📍 TIMELINE:
+Das Frontend ist bereits fertig und schreibt in Redis. Backend muss jetzt die Keys lesen und entsprechend handeln.
+
+Kannst du das Redis Monitoring und die AutoTrading Steuerung implementieren?

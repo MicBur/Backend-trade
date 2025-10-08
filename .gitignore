@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+logs/
+
+# AutoGluon models (too large for git)
+autogluon_model/
+autogluon_model_*/
+models/
+
+# Database files
+*.db
+*.sqlite3
+*.sql
+backup_*.sql
+
+# Docker volumes
+/app/pg/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+celerybeat-schedule

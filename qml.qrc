@@ -1,0 +1,16 @@
+<RCC>
+  <qresource prefix="/qml">
+  <file alias="Main.qml">qml/Main.qml</file>
+  <file alias="MainSimple.qml">qml/MainSimple.qml</file>
+  <file alias="MainStep1.qml">qml/MainStep1.qml</file>
+  <file alias="MainStep2.qml">qml/MainStep2.qml</file>
+  <file alias="MainStep3.qml">qml/MainStep3.qml</file>
+  <file alias="Theme.qml">qml/Theme.qml</file>
+  <file alias="qmldir">qml/qmldir</file>
+  <file alias="components/HeaderBar.qml">qml/components/HeaderBar.qml</file>
+  <file alias="components/SideNav.qml">qml/components/SideNav.qml</file>
+  <file alias="components/MarketList.qml">qml/components/MarketList.qml</file>
+  <file alias="components/StatusBadge.qml">qml/components/StatusBadge.qml</file>
+  <file alias="components/CandleChart.qml">qml/components/CandleChart.qml</file>
+  </qresource>
+</RCC>

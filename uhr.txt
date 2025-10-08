@@ -1,0 +1,38 @@
+BACKEND ANPASSUNG ERFORDERLICH - Handelszeiten Integration
+
+Hallo! Ich brauche eine wichtige Erweiterung für das AutoTrading Backend im Docker Container:
+
+🎯 ANFORDERUNG: Das Trading-System soll nur während echten US-Marktzeiten handeln dürfen.
+
+⏰ HANDELSZEITEN (US Eastern Time):
+
+Markt OFFEN: Montag-Freitag 9:30-16:00 Uhr ET
+Markt GESCHLOSSEN: Wochenenden, Feiertage, außerhalb 9:30-16:00 ET
+PRE/AFTER-MARKET: 4:00-9:30 Uhr & 16:00-20:00 Uhr ET (kein AutoTrading)
+🔧 BACKEND ÄNDERUNGEN BENÖTIGT:
+
+Market Hours Check Funktion:
+
+
+def is_market_open():    # Prüft aktuelle US Eastern Time    # Gibt True/False zurück ob Markt offen ist    # Berücksichtigt Wochenenden und Feiertage
+Trading Validierung:
+
+Alle Trading-Requests müssen Marktzeiten prüfen
+Bei geschlossenem Markt: Request ablehnen mit Fehlermeldung
+AutoTrading automatisch pausieren wenn Markt schließt
+Redis/API Endpunkte:
+
+GET /market-status → aktueller Marktstatus
+enableAutoTrading() → soll Marktzeiten prüfen vor Aktivierung
+Automatisches Stoppen bei Marktschluss
+📍 AKTUELLER KONTEXT:
+
+Frontend läuft auf deutscher Zeit (CEST)
+Backend im Docker auf Remote Host
+6 Stunden Zeitdifferenz zu US Eastern Time
+Frontend prüft bereits Handelszeiten, Backend sollte das auch tun
+🚨 WICHTIG: Echtes Geld wird verwendet! Trading außerhalb Marktzeiten ist gefährlich und sinnlos.
+
+Kannst du das Backend entsprechend erweitern? Das Frontend sendet bereits die Requests, aber das Backend sollte nochmal validieren.
+
+Dieser Text gibt Claude Sonnet alle nötigen Informationen um das Backend korrekt anzupassen! 🎯

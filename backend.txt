@@ -1,0 +1,521 @@
+# Redis Backend Integration für 6bot Trading System
+# Datum: 21. September 2025
+# Zweck: Dokumentation für Backend-Entwickler
+
+## ========================================
+## REDIS KEYS STRUKTUR
+## ========================================
+
+### 1. TRADING SETTINGS (Frontend → Backend)
+Key: `trading_settings`
+Typ: JSON String
+Beschreibung: Zentrale Trading-Konfiguration, die vom Frontend gesetzt wird
+
+```json
+{
+  "enabled": true,                    // Haupt-Schalter für Auto-Trading
+  "buy_threshold_pct": 0.05,         // 5% Schwellwert für Käufe
+  "sell_threshold_pct": 0.05,        // 5% Schwellwert für Verkäufe  
+  "max_position_per_trade": 1,       // Maximale Anzahl Aktien pro Trade
+  "strategy": "CONSERVATIVE",        // Strategie: CONSERVATIVE, BALANCED, AGGRESSIVE
+  "last_updated": "2025-09-21T15:30:00Z",
+  "updated_by": "frontend"
+}
+```
+
+### 2. TRADING STATUS (Backend → Frontend)
+Key: `trading_status`
+Typ: JSON String
+Beschreibung: Aktueller Status des Trading-Systems
+
+```json
+{
+  "last_run": "2025-09-21T15:29:45Z",
+  "last_error": null,               // Letzte Fehlermeldung oder null
+  "trades_today": 3,                // Anzahl Trades heute
+  "total_volume": 15000.50,         // Gesamtvolumen heute (USD)
+  "active": true,                   // Ist Trading-Worker aktiv?
+  "next_run": "2025-09-21T15:39:45Z",
+  "worker_pid": 12345
+}
+```
+
+### 3. SYSTEM STATUS (Backend → Frontend)
+Key: `system_status`
+Typ: JSON String
+Beschreibung: Gesundheitsstatus aller Backend-Komponenten
+
+```json
+{
+  "redis_connected": true,
+  "postgres_connected": true,
+  "finnhub_api_active": true,
+  "alpaca_api_active": true,
+  "grok_api_active": true,
+  "yfinance_api_active": true,
+  "worker_running": true,
+  "last_heartbeat": "2025-09-21T15:30:15Z",
+  "uptime_seconds": 86400,
+  "memory_usage_mb": 512,
+  "cpu_usage_percent": 23.5
+}
+```
+
+### 4. RISK SETTINGS (Frontend ↔ Backend)
+Key: `risk_settings`
+Typ: JSON String
+Beschreibung: Risikomanagement-Parameter
+
+```json
+{
+  "daily_notional_cap": 50000,      // Max. Handelsvolumen pro Tag (USD)
+  "max_position_per_ticker": 5,     // Max. Orders pro Ticker pro Tag
+  "cooldown_minutes": 30,           // Pause nach Trade (Minuten)
+  "max_trades_per_run": 3,          // Hard Limit pro Trading-Zyklus
+  "emergency_stop_active": false
+}
+```
+
+### 5. PORTFOLIO DATA (Backend → Frontend)
+Key: `portfolio_positions`
+Typ: JSON Array
+Beschreibung: Aktuelle Positionen
+
+```json
+[
+  {
+    "ticker": "AAPL",
+    "qty": "100",
+    "avg_entry_price": "150.25",
+    "market_value": "15025.00",
+    "unrealized_pl": "275.00",
+    "side": "long"
+  }
+]
+```
+
+### 6. TRADES LOG (Backend → Frontend)
+Key: `trades_log`
+Typ: JSON Array (max. 200 Einträge)
+Beschreibung: Handelshistorie
+
+```json
+[
+  {
+    "time": "2025-09-21T15:50:05Z",
+    "ticker": "AAPL",
+    "side": "buy",
+    "qty": 1,
+    "price": 234.10,
+    "total_value": 234.10,
+    "reason": "ML prediction positive",
+    "order_id": "abc123",
+    "status": "filled"
+  }
+]
+```
+
+## ========================================
+## BACKEND WORKER IMPLEMENTIERUNG
+## ========================================
+
+### HAUPT-TRADING-LOOP (Pseudo-Code)
+
+```python
+import redis
+import json
+import time
+from datetime import datetime
+
+r = redis.Redis(host='localhost', port=6380, password='pass123', decode_responses=True)
+
+def main_trading_loop():
+    """Haupt-Trading-Schleife - läuft alle 10 Minuten"""
+    
+    while True:
+        try:
+            # 1. LESE TRADING SETTINGS
+            settings_json = r.get('trading_settings')
+            if not settings_json:
+                print("⚠️ trading_settings nicht gefunden - erstelle Default")
+                create_default_settings()
+                continue
+                
+            settings = json.loads(settings_json)
+            
+            # 2. PRÜFE OB TRADING AKTIVIERT
+            if not settings.get('enabled', False):
+                print("⏸️ Trading deaktiviert - warte...")
+                update_trading_status(active=False, reason="disabled_by_user")
+                time.sleep(60)  # 1 Minute warten
+                continue
+            
+            # 3. PRÜFE RISIKOMANAGEMENT
+            if not check_risk_limits():
+                print("🛑 Risikogrenzen erreicht - Trading pausiert")
+                time.sleep(600)  # 10 Minuten warten
+                continue
+            
+            # 4. FÜHRE TRADING-LOGIK AUS
+            execute_trading_cycle(settings)
+            
+            # 5. UPDATE STATUS
+            update_trading_status(active=True)
+            update_system_heartbeat()
+            
+        except Exception as e:
+            print(f"❌ Trading Loop Fehler: {e}")
+            update_trading_status(active=False, error=str(e))
+        
+        # 6. WARTE BIS NÄCHSTER ZYKLUS
+        time.sleep(600)  # 10 Minuten
+
+def create_default_settings():
+    """Erstelle Standard Trading Settings"""
+    default_settings = {
+        "enabled": False,  # WICHTIG: Default ist AUS!
+        "buy_threshold_pct": 0.05,
+        "sell_threshold_pct": 0.05,
+        "max_position_per_trade": 1,
+        "strategy": "CONSERVATIVE",
+        "last_updated": datetime.now().isoformat(),
+        "updated_by": "backend_init"
+    }
+    r.set('trading_settings', json.dumps(default_settings))
+    print("✅ Default trading_settings erstellt")
+
+def execute_trading_cycle(settings):
+    """Führe einen Trading-Zyklus aus"""
+    
+    # Hole aktuelle Marktdaten
+    market_data = get_market_data()  # Deine Implementierung
+    
+    # Hole ML Predictions
+    predictions = get_ml_predictions()  # Deine Implementierung
+    
+    # Trading-Entscheidungen basierend auf Strategie
+    strategy = settings.get('strategy', 'CONSERVATIVE')
+    
+    for ticker in get_active_tickers():
+        try:
+            # Prüfe Kauf-Signal
+            if should_buy(ticker, market_data, predictions, settings):
+                execute_buy_order(ticker, settings)
+            
+            # Prüfe Verkauf-Signal
+            elif should_sell(ticker, market_data, predictions, settings):
+                execute_sell_order(ticker, settings)
+                
+        except Exception as e:
+            print(f"❌ Trading error for {ticker}: {e}")
+            log_trade_error(ticker, str(e))
+
+def should_buy(ticker, market_data, predictions, settings):
+    """Prüfe ob Kauf-Signal vorliegt"""
+    
+    # Hole aktuelle Prediction für Ticker
+    pred = predictions.get(ticker)
+    if not pred:
+        return False
+    
+    # Prüfe Threshold basierend auf Strategie
+    threshold = settings['buy_threshold_pct']
+    
+    # Strategieanpassung
+    if settings['strategy'] == 'AGGRESSIVE':
+        threshold *= 0.7  # Niedrigere Schwelle
+    elif settings['strategy'] == 'CONSERVATIVE':
+        threshold *= 1.5  # Höhere Schwelle
+    
+    predicted_change = pred.get('change_pct', 0)
+    return predicted_change > threshold
+
+def execute_buy_order(ticker, settings):
+    """Führe Kauf-Order aus"""
+    
+    try:
+        # Prüfe Portfolio-Limits
+        current_positions = get_current_positions()
+        if count_positions_for_ticker(ticker, current_positions) >= settings['max_position_per_trade']:
+            print(f"⚠️ Position limit erreicht für {ticker}")
+            return
+        
+        # Hole aktuellen Preis
+        current_price = get_current_price(ticker)
+        qty = calculate_position_size(ticker, settings['strategy'])
+        
+        # Alpaca Order
+        order = alpaca_client.submit_order(
+            symbol=ticker,
+            qty=qty,
+            side='buy',
+            type='market',
+            time_in_force='day'
+        )
+        
+        # Log Trade
+        log_trade({
+            'time': datetime.now().isoformat(),
+            'ticker': ticker,
+            'side': 'buy',
+            'qty': qty,
+            'price': current_price,
+            'total_value': qty * current_price,
+            'reason': f"ML prediction above {settings['buy_threshold_pct']}%",
+            'order_id': order.id,
+            'status': 'submitted'
+        })
+        
+        print(f"✅ Buy order submitted: {ticker} x{qty} @ ${current_price}")
+        
+    except Exception as e:
+        print(f"❌ Buy order failed for {ticker}: {e}")
+        log_trade_error(ticker, f"Buy failed: {e}")
+
+def emergency_stop_handler():
+    """Überwache Emergency Stop Signal"""
+    
+    while True:
+        try:
+            settings_json = r.get('trading_settings')
+            if settings_json:
+                settings = json.loads(settings_json)
+                
+                # Prüfe ob Trading deaktiviert wurde
+                if not settings.get('enabled', False):
+                    print("🛑 Emergency Stop erkannt - stoppe alle Orders")
+                    
+                    # Cancle alle offenen Orders
+                    cancel_all_open_orders()
+                    
+                    # Update Status
+                    update_trading_status(
+                        active=False, 
+                        reason="emergency_stop",
+                        last_error="Emergency stop activated by user"
+                    )
+        
+        except Exception as e:
+            print(f"❌ Emergency Stop Handler Error: {e}")
+        
+        time.sleep(10)  # Prüfe alle 10 Sekunden
+
+def update_trading_status(active=True, reason=None, error=None):
+    """Update Trading Status in Redis"""
+    
+    try:
+        # Hole aktuellen Status
+        current_status = r.get('trading_status')
+        status = json.loads(current_status) if current_status else {}
+        
+        # Update Felder
+        status.update({
+            'last_run': datetime.now().isoformat(),
+            'active': active,
+            'last_error': error,
+            'trades_today': count_trades_today(),
+            'total_volume': calculate_daily_volume(),
+        })
+        
+        if reason:
+            status['stop_reason'] = reason
+        
+        # Schreibe zurück nach Redis
+        r.set('trading_status', json.dumps(status))
+        
+    except Exception as e:
+        print(f"❌ Status update failed: {e}")
+
+def update_system_heartbeat():
+    """Update System Status Heartbeat"""
+    
+    try:
+        status = {
+            'redis_connected': True,
+            'postgres_connected': test_postgres_connection(),
+            'alpaca_api_active': test_alpaca_connection(),
+            'worker_running': True,
+            'last_heartbeat': datetime.now().isoformat(),
+            'uptime_seconds': get_uptime(),
+            'memory_usage_mb': get_memory_usage(),
+            'cpu_usage_percent': get_cpu_usage()
+        }
+        
+        r.set('system_status', json.dumps(status))
+        
+    except Exception as e:
+        print(f"❌ Heartbeat update failed: {e}")
+
+def log_trade(trade_data):
+    """Logge Trade in Redis"""
+    
+    try:
+        # Hole aktuelles Log
+        trades_log_json = r.get('trades_log')
+        trades_log = json.loads(trades_log_json) if trades_log_json else []
+        
+        # Füge neuen Trade hinzu
+        trades_log.append(trade_data)
+        
+        # Begrenze auf 200 Einträge (FIFO)
+        if len(trades_log) > 200:
+            trades_log = trades_log[-200:]
+        
+        # Schreibe zurück
+        r.set('trades_log', json.dumps(trades_log))
+        
+    except Exception as e:
+        print(f"❌ Trade logging failed: {e}")
+
+def check_risk_limits():
+    """Prüfe Risikomanagement-Limits"""
+    
+    try:
+        risk_settings_json = r.get('risk_settings')
+        if not risk_settings_json:
+            return True  # Keine Limits definiert
+        
+        risk_settings = json.loads(risk_settings_json)
+        
+        # Prüfe tägliches Volumen-Limit
+        daily_volume = calculate_daily_volume()
+        daily_cap = risk_settings.get('daily_notional_cap', 0)
+        
+        if daily_cap > 0 and daily_volume >= daily_cap:
+            print(f"🛑 Daily volume cap reached: ${daily_volume} >= ${daily_cap}")
+            return False
+        
+        # Prüfe Emergency Stop
+        if risk_settings.get('emergency_stop_active', False):
+            print("🛑 Emergency stop is active")
+            return False
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Risk check failed: {e}")
+        return False  # Bei Fehler: Sicherheit first
+
+## ========================================
+## STARTUP SCRIPT
+## ========================================
+
+if __name__ == "__main__":
+    print("🚀 Starting 6bot Trading Backend...")
+    print("📡 Connecting to Redis localhost:6380...")
+    
+    # Test Redis Connection
+    try:
+        r.ping()
+        print("✅ Redis connection successful")
+    except Exception as e:
+        print(f"❌ Redis connection failed: {e}")
+        exit(1)
+    
+    # Erstelle Default Settings falls nicht vorhanden
+    if not r.exists('trading_settings'):
+        create_default_settings()
+    
+    # Starte Emergency Stop Handler in eigenem Thread
+    import threading
+    emergency_thread = threading.Thread(target=emergency_stop_handler)
+    emergency_thread.daemon = True
+    emergency_thread.start()
+    
+    # Starte Haupt-Trading-Loop
+    print("🤖 Starting main trading loop...")
+    main_trading_loop()
+```
+
+## ========================================
+## WICHTIGE REDIS KOMMANDOS FÜR TESTING
+## ========================================
+
+```bash
+# Redis CLI Commands für Testing:
+
+# 1. Trading aktivieren
+SET trading_settings '{"enabled": true, "buy_threshold_pct": 0.05, "sell_threshold_pct": 0.05, "max_position_per_trade": 1, "strategy": "CONSERVATIVE"}'
+
+# 2. Trading deaktivieren (Emergency Stop)
+SET trading_settings '{"enabled": false}'
+
+# 3. Status prüfen
+GET trading_settings
+GET trading_status
+GET system_status
+
+# 4. Logs anzeigen
+GET trades_log
+
+# 5. Risiko-Einstellungen
+SET risk_settings '{"daily_notional_cap": 10000, "max_position_per_ticker": 3, "cooldown_minutes": 30}'
+```
+
+## ========================================
+## FRONTEND-BACKEND SYNCHRONISATION
+## ========================================
+
+### 1. FRONTEND SETZT TRADING AUF AKTIV:
+```
+Frontend: SET trading_settings '{"enabled": true, ...}'
+Backend:  Liest Key, startet Trading
+Backend:  SET trading_status '{"active": true, "last_run": "..."}'
+Frontend: Liest Status, zeigt "AKTIV" an
+```
+
+### 2. FRONTEND EMERGENCY STOP:
+```
+Frontend: SET trading_settings '{"enabled": false, ...}'
+Backend:  Liest Key, stoppt alle Orders sofort
+Backend:  SET trading_status '{"active": false, "stop_reason": "emergency_stop"}'
+Frontend: Liest Status, zeigt "GESTOPPT" an
+```
+
+### 3. BACKEND CRASH/NEUSTART:
+```
+Backend:  Startet neu, liest trading_settings
+Backend:  Falls enabled=true, setzt Trading fort
+Backend:  SET system_status '{"worker_running": true, ...}'
+Frontend: Sieht Heartbeat, zeigt "VERBUNDEN" an
+```
+
+## ========================================
+## DEPLOYMENT CHECKLIST
+## ========================================
+
+### 1. Redis Setup:
+- [ ] Redis läuft auf Port 6380
+- [ ] Password 'pass123' konfiguriert
+- [ ] Persistenz aktiviert (RDB/AOF)
+
+### 2. Backend Service:
+- [ ] Trading Worker läuft als Service
+- [ ] Emergency Stop Handler aktiv
+- [ ] Heartbeat alle 30 Sekunden
+- [ ] Logging konfiguriert
+
+### 3. Frontend Integration:
+- [ ] AutoTradingBackend-Fixed.js geladen
+- [ ] Redis Port Detection funktioniert
+- [ ] UI zeigt korrekten Status an
+
+### 4. Monitoring:
+- [ ] system_status wird überwacht
+- [ ] trading_status Heartbeat
+- [ ] Error Logs werden gesammelt
+
+## ========================================
+## SICHERHEITS-HINWEISE
+## ========================================
+
+1. **Default State**: Trading ist IMMER standardmäßig AUS
+2. **Emergency Stop**: Frontend kann JEDERZEIT alle Trades stoppen
+3. **Risk Limits**: Tägliche Volumen-Caps werden eingehalten
+4. **Error Handling**: Bei Fehlern wird Trading pausiert
+5. **Heartbeat**: Backend muss regelmäßig "Lebenszeichen" senden
+
+---
+Ende der Backend-Dokumentation
+Datum: 21. September 2025
+Version: 1.0

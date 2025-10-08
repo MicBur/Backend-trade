@@ -1,0 +1,126 @@
+# Qt Tradebot – Pub/Sub Integration für Redis (Version 1.1)
+# Aktualisiert: 2025-09-14
+# Zweck: Umstellung von 5s-Polling auf Echtzeit-Pub/Sub für zeitkritische Daten
+# Ziel: Minimierung von Latenz für UI-Updates (Preise, Charts) ohne Backend-Änderungen
+
+## Überblick
+Aktuelles Setup:
+- Lokaler Redis-Slave (127.0.0.1:6380) repliziert von Remote Redis (<server-ip>:6379, Passwort: pass123).
+- Frontend (Qt Quick/C++) pollt Keys wie `market_data`, `chart_data_<SYMBOL>`, `predictions_<SYMBOL>` alle 5s mit exponentiellem Backoff (5s→30s).
+- Backend schreibt atomar in Redis-Keys (siehe Schema v1.1).
+
+Ziel mit Pub/Sub:
+- Echtzeit-Updates für zeitkritische Daten (`market_data`, `chart_data_<SYMBOL>`, `predictions_<SYMBOL>`).
+- Beibehaltung von Polling als Fallback für Robustheit.
+- Keine Änderungen am Backend erforderlich.
+
+## Vorteile von Pub/Sub
+- Latenz: Sofortige Updates (Sub-Sekunde) statt 5s-Verzögerung.
+- Effizienz: Kein unnötiges Polling, nur Daten bei Änderung.
+- UI: Flüssigere Animationen (z.B. Preis-Flash, Chart-Updates).
+- Skalierbarkeit: Weniger Belastung des Redis-Slaves bei vielen Symbolen.
+
+## Nachteile/Risiken
+- Verbindung: Pub/Sub bricht bei Redis-Disconnect (kein Cache wie bei GET).
+- Komplexität: Zusätzliche C++-Komponente (Subscriber) erforderlich.
+- Backend: Muss `PUBLISH` aufrufen (minimaler Aufwand, wenn Keys schon geschrieben werden).
+
+## Implementierungsplan
+### 1. Redis-Kanäle definieren
+Kanäle spiegeln Keys wider:
+- `market_data:updated` für Marktübersicht.
+- `chart_data:<SYMBOL>:updated` für Candles pro Symbol.
+- `predictions:<SYMBOL>:updated` für Forecasts.
+- Optional: `notifications:updated`, `active_orders:updated`.
+
+Backend-Aufgabe:
+- Nach jedem `SET key value` (z.B. `SET market_data {...}`) ein `PUBLISH key:updated value` ausführen.
+- Beispiel: `SET chart_data_AAPL [...]` → `PUBLISH chart_data:AAPL:updated [...]`.
+
+### 2. C++ Subscriber (hiredis)
+Neue Klasse `RedisPubSubClient` (basierend auf `hiredis`):
+- Verbindet zum lokalen Slave (127.0.0.1:6380).
+- Subscribt Kanäle asynchron (`redisAsyncCommand(context, "SUBSCRIBE market_data:updated")`).
+- Parsed eingehende JSON-Nachrichten und sendet Signals an Models.
+
+Beispiel (Pseudocode):
+```
+#include <hiredis/hiredis.h>
+#include <hiredis/async.h>
+#include <QObject>
+
+class RedisPubSubClient : public QObject {
+    Q_OBJECT
+public:
+    RedisPubSubClient() {
+        context = redisAsyncConnect("127.0.0.1", 6380);
+        redisAsyncCommand(context, onMessage, this, "SUBSCRIBE market_data:updated");
+        redisAsyncCommand(context, onMessage, this, "SUBSCRIBE chart_data:AAPL:updated");
+    }
+
+    static void onMessage(redisAsyncContext*, void* reply, void* privdata) {
+        auto* sub = static_cast<RedisPubSubClient*>(privdata);
+        // reply->str enthält JSON (z.B. von market_data)
+        emit sub->dataReceived(reply->channel, QString::fromStdString(reply->str));
+    }
+
+signals:
+    void dataReceived(const QString& channel, const QString& json);
+
+private:
+    redisAsyncContext* context;
+};
+```
+
+### 3. QML-Integration
+Verbindung zu `RedisPubSubClient`:
+```
+Connections {
+    target: redisPubSubClient
+    function onDataReceived(channel, json) {
+        if (channel === "market_data:updated") {
+            marketModel.updateFromJson(json);
+        } else if (channel.startsWith("chart_data:")) {
+            chartDataModel.updateFromJson(json);
+        } else if (channel.startsWith("predictions:")) {
+            predictionsModel.updateFromJson(json);
+        }
+    }
+}
+```
+
+### 4. Hybrid-Ansatz (Robustheit)
+- Pub/Sub für Echtzeit (`market_data`, `chart_data_<SYMBOL>`, `predictions_<SYMBOL>`).
+- Polling-Fallback (10s statt 5s) für gleiche Keys bei Disconnect:
+  - Prüfe `system_status.redis_connected` vor jedem Poll.
+  - Bei `false`: Fallback auf letzten Cache oder Mock-Daten.
+- Signal bei Reconnect: `redisPubSubClient` emit `reconnected`, triggert sofortigen Poll.
+
+### 5. Fehlerhandling
+- Disconnect: `redisAsyncContext->err` prüfen, Signal `connectionLost` emit.
+- QML: Overlay bei Disconnect (`StatusModel.redisConnected === false`).
+- Cache: Letzte gültige Daten in Models speichern (`MarketModel`, `ChartDataModel`).
+
+### 6. Performance-Optimierung
+- Diff-Updates: Wie aktuell in `MarketModel` nur geänderte Einträge updaten.
+- Symbol-Filter: Nur Kanäle subscriben, die `poller.currentSymbol` entsprechen (dynamisch via `SUBSCRIBE`/`UNSUBSCRIBE`).
+- Threading: `hiredis` async in eigenem Thread, Qt Event Loop für Signals.
+
+## Nächste Schritte
+1. **Test Subscriber**: Mock-Kanal lokal (`PUBLISH market_data:updated {...}`) und Signal-Handling prüfen.
+2. **Backend-Anpassung**: `PUBLISH` nach jedem `SET` (minimaler Aufwand).
+3. **QML-Bindings**: Signals an `MarketModel`, `ChartDataModel` testen.
+4. **Fallback**: Polling (10s) bei Disconnect einbauen.
+5. **Stress-Test**: Viele Symbole, hohe Frequenz (`PUBLISH` alle 100ms).
+
+## Offene Fragen
+- Welche Kanäle priorisieren? (`market_data:updated` zuerst?)
+- Dynamisches Subscribe/Unsubscribe bei Symbolwechsel in `MarketList`?
+- Cache-Strategie für Disconnects (z.B. letzte 10 Candles speichern)?
+
+## Hinweise
+- `hiredis` async benötigt Event Loop (Qt integriert gut).
+- Backend muss konsistent `PUBLISH` nach `SET` machen.
+- Test lokal mit `redis-cli`: `PUBLISH market_data:updated '{"AAPL":{"price":235.0}}'`.
+
+# Fragen? Ping an mich – z.B. für konkreten `RedisPubSubClient`-Code oder QML-Debugging.

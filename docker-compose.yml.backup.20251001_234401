@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:2
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass pass123
+    networks:
+      - qt_trade_network
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: qt_trade
+      POSTGRES_PASSWORD: pass123
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - /app/pg:/var/lib/postgresql/data
+    networks:
+      - qt_trade_network
+
+  worker:
+    build: .
+    depends_on:
+      - redis
+      - postgres
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://:pass123@redis:6379/0
+      - DATABASE_URL=postgresql://postgres:pass123@postgres:5432/qt_trade
+    volumes:
+      - .:/app
+    networks:
+      - qt_trade_network
+
+  celery-beat:
+    build: .
+    depends_on:
+      - redis
+      - postgres
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://:pass123@redis:6379/0
+      - DATABASE_URL=postgresql://postgres:pass123@postgres:5432/qt_trade
+    command: ["celery", "-A", "worker", "beat", "--loglevel=info"]
+    volumes:
+      - .:/app
+    networks:
+      - qt_trade_network
+
+  yfinance:
+    build:
+      context: .
+      dockerfile: Dockerfile.yfinance
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://:pass123@redis:6379/0
+      - YF_INTERVAL=60
+      - YF_BATCH_SIZE=15
+      # Optional Override Liste, sonst dynamic_tickers
+      # - YF_TICKERS=AAPL,MSFT,NVDA,TSLA,AMZN
+    restart: unless-stopped
+    networks:
+      - qt_trade_network
+
+  yfinance-enhanced:
+    build: .
+    depends_on:
+      - redis
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://:pass123@redis:6379/0
+      - YF_ENHANCED_INTERVAL=300
+      - YF_HISTORY_DAYS=365
+    command: ["python", "yfinance_enhanced_service.py"]
+    restart: unless-stopped
+    volumes:
+      - .:/app
+    networks:
+      - qt_trade_network
+
+  traefik:
+    image: traefik:v2.10
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik.toml:/etc/traefik/traefik.toml
+    networks:
+      - qt_trade_network
+
+networks:
+  qt_trade_network:
+    driver: bridge

@@ -1,0 +1,845 @@
+🔴 REDIS ENDPOINTS DOCUMENTATION - QBOT TRADING SYSTEM (ENHANCED)
+================================================================
+
+📊 BACKEND.TXT COMPLIANCE KEYS (Haupt-System)
+==============================================
+
+✅ trading_settings
+Format: JSON Object
+{
+  "enabled": true/false,
+  "buy_threshold_pct": 0.02,
+  "sell_threshold_pct": 0.02, 
+  "max_position_per_trade": 1,
+  "strategy": "CONSERVATIVE",
+  "last_updated": "ISO8601",
+  "updated_by": "string"
+}
+
+✅ trading_status  
+Format: JSON Object
+{
+  "last_run": "ISO8601",
+  "last_error": null,
+  "trades_today": 0,
+  "total_volume": 0.0,
+  "active": true/false,
+  "next_run": "ISO8601",
+  "worker_pid": 123
+}
+
+✅ system_status
+Format: JSON Object (Enhanced Multi-API Monitoring)
+{
+  "redis_connected": true,
+  "postgres_connected": true,
+  "finnhub_api_active": true,
+  "fmp_api_active": false,
+  "marketstack_api_active": false,
+  "alpaca_api_active": true,
+  "grok_api_active": true,
+  "yfinance_api_active": false,
+  "twelvedata_api_active": true,
+  "worker_running": true,
+  "last_heartbeat": "ISO8601",
+  "uptime_seconds": 3600,
+  "memory_usage_mb": 177,
+  "cpu_usage_percent": 0.0,
+  "market_open": true/false,
+  "last_market_check": "ISO8601"
+}
+
+✅ risk_settings
+Format: JSON Object
+{
+  "daily_notional_cap": 50000,
+  "max_position_per_ticker": 5,
+  "cooldown_minutes": 30,
+  "max_trades_per_run": 3,
+  "emergency_stop_active": false
+}
+
+✅ portfolio_positions
+Format: JSON Array
+[
+  {
+    "ticker": "AAPL",
+    "qty": "100", 
+    "avg_entry_price": "150.00",
+    "market_value": "15000.00",
+    "unrealized_pl": "500.00",
+    "side": "long"
+  }
+]
+
+✅ trades_log
+Format: JSON Array (max 200 entries)
+[
+  {
+    "time": "ISO8601",
+    "ticker": "AAPL",
+    "side": "buy/sell",
+    "qty": 1,
+    "current_price": 150.00,
+    "predicted_price": 160.00,
+    "change_pct": 0.0667,
+    "order_response": {...}
+  }
+]
+
+🕒 MARKET HOURS VALIDATION KEYS (NEU)
+======================================
+
+✅ market_status
+Format: JSON Object
+{
+  "market_open": true/false,
+  "current_time_et": "2025-09-26T09:34:17.267499-04:00",
+  "next_open": "ISO8601",
+  "trading_day": true/false,
+  "market_session": "OPEN/CLOSED/ERROR"
+}
+
+🔄 FRONTEND-BACKEND COMMUNICATION (AT.TXT)
+==========================================
+
+📥 FRONTEND WRITES (Input Keys):
+autotrading:enabled
+Format: JSON Object
+{
+  "enabled": true,
+  "buy_threshold_pct": 0.05,
+  "sell_threshold_pct": 0.05,
+  "max_position_per_trade": 1,
+  "strategy": "CONSERVATIVE", 
+  "timestamp": "ISO8601",
+  "source": "frontend_ui",
+  "market_hours_check": true,
+  "session_id": "frontend_1727354130123",
+  "trading_hours": {
+    "market_open": "09:30",
+    "market_close": "16:00",
+    "timezone": "America/New_York"
+  }
+}
+
+autotrading:status
+Format: String
+Values: "ACTIVE" | "STOPPED"
+
+📤 BACKEND WRITES (Feedback Keys):
+autotrading:backend_status
+Format: String
+Values: "RUNNING" | "STOPPED" | "MARKET_CLOSED" | "ERROR" | "CONFIG_ERROR"
+
+autotrading:session_active
+Format: String (Session ID)
+Example: "frontend_1727354130123"
+
+autotrading:last_trade
+Format: JSON Object (Latest trade from trades_log)
+
+autotrading:active_positions  
+Format: JSON Array (Same as portfolio_positions)
+
+autotrading:stats
+Format: JSON Object
+{
+  "trades_today": 5,
+  "total_volume": 1250.00,
+  "last_run": "ISO8601",
+  "next_run": "ISO8601", 
+  "positions_count": 3
+}
+
+autotrading:error
+Format: String (Error message when something fails)
+
+autotrading:last_update
+Format: String (ISO8601 timestamp)
+
+autotrading:stopped_at
+Format: String (ISO8601 timestamp when stopped)
+
+🎛️ ENHANCED FRONTEND SETTINGS (NEU - Trading Suite)
+===================================================
+
+📥 FRONTEND WRITES (Backend Must Monitor These Keys):
+
+frontend:trading_config
+Format: JSON Object (Complete Trading Configuration - Backend MUST READ)
+{
+  "aggressiveness": 3,              // 1-5 scale (1=Conservative, 5=Aggressive)
+  "max_position_size": 100,         // Maximum shares per trade
+  "max_daily_trades": 50,          // Maximum trades per day
+  "buy_threshold_pct": 0.02,       // Buy trigger threshold
+  "sell_threshold_pct": 0.02,      // Sell trigger threshold
+  "stop_loss_pct": 0.05,          // Stop loss percentage
+  "take_profit_pct": 0.10,         // Take profit percentage
+  "cash_reserve": 5000.00,         // Cash to keep untouched ($)
+  "trading_capital": 120430.50,    // Available for trading ($)
+  "use_ml_signals": true,          // Enable ML predictions
+  "ml_confidence_threshold": 0.80, // Minimum ML confidence for trades
+  "paper_mode": true,              // true=Paper Trading, false=Live Trading
+  "session_id": "frontend_1727456789",
+  "updated_at": "ISO8601",
+  "updated_by": "trading_suite_ui"
+}
+// Backend Action: Apply these settings to trading_settings and risk_settings
+
+frontend:bot_strategy  
+Format: JSON Object (AI Trading Strategy Settings - Backend MUST READ)
+{
+  "strategy_type": "AGGRESSIVE",    // CONSERVATIVE, MODERATE, AGGRESSIVE
+  "use_grok_signals": true,        // Enable Grok AI recommendations
+  "use_ml_predictions": true,      // Enable ML price predictions
+  "use_technical_analysis": true,  // Enable TA indicators
+  "grok_score_threshold": 0.85,    // Minimum Grok score for trades
+  "ml_confidence_threshold": 0.80, // Minimum ML prediction confidence
+  "risk_level": 5,                 // 1-5 risk appetite
+  "position_sizing_method": "FIXED", // FIXED, PERCENTAGE, VOLATILITY_BASED
+  "diversification_target": 5,     // Target number of positions
+  "session_id": "frontend_1727456789",
+  "updated_at": "ISO8601"
+}
+// Backend Action: Use for trade_bot decision logic and grok integration
+
+frontend:portfolio_settings
+Format: JSON Object (Portfolio Management Settings - Backend MUST READ)
+{
+  "target_diversification": 5,     // Target number of different positions
+  "max_position_pct": 0.20,       // Max % of portfolio per position (20%)
+  "rebalance_enabled": true,       // Auto-rebalancing
+  "rebalance_threshold": 0.05,     // Rebalance when drift > 5%
+  "preferred_sectors": ["Technology", "Healthcare", "Finance"],
+  "excluded_tickers": ["TSLA"],    // Blacklisted symbols - Backend MUST RESPECT
+  "cash_reserve": 5000.00,         // Must match frontend:trading_config
+  "updated_at": "ISO8601"
+}
+// Backend Action: Filter trading candidates and respect exclusions
+
+frontend:manual_orders
+Format: JSON Array (Manual Orders from Frontend - Backend MUST PROCESS)
+[
+  {
+    "order_id": "manual_1727456789",
+    "symbol": "AAPL",
+    "side": "BUY",                  // BUY, SELL
+    "quantity": 10,
+    "order_type": "MARKET",         // MARKET, LIMIT, STOP_LOSS
+    "limit_price": null,            // For LIMIT orders
+    "stop_price": null,             // For STOP orders
+    "time_in_force": "DAY",         // DAY, GTC, IOC, FOK
+    "created_at": "ISO8601",
+    "created_by": "manual_trading_ui",
+    "session_id": "frontend_1727456789",
+    "status": "PENDING",            // PENDING, SUBMITTED, FILLED, CANCELED, REJECTED
+    "priority": "HIGH"              // LOW, MEDIUM, HIGH, CRITICAL
+  }
+]
+// Backend Action: Process these orders alongside automated trades
+
+frontend:emergency_actions
+Format: JSON Object (Emergency Commands - Backend MUST REACT IMMEDIATELY)
+{
+  "action": "STOP_ALL_TRADING",    // STOP_ALL_TRADING, CLOSE_ALL_POSITIONS, CANCEL_ALL_ORDERS
+  "reason": "Market crash detected", // Human readable reason
+  "timestamp": "ISO8601",
+  "session_id": "frontend_1727456789",
+  "confirmed": true,               // User confirmation required
+  "force": false                   // Override safety checks
+}
+// Backend Action: Execute immediately and update all status keys
+
+frontend:ui_state
+Format: JSON Object (Frontend UI State - Backend CAN READ for Analytics)
+{
+  "active_tab": "dashboard",       // dashboard, trading, portfolio, settings
+  "autotrading_enabled": false,   // Current AutoTrading state
+  "paper_mode": true,             // true=Paper Trading, false=Live Trading
+  "last_refresh": "ISO8601",      // Last data refresh
+  "notifications_enabled": true,  // Push notifications
+  "chart_timeframe": "1D",        // Default chart timeframe
+  "theme": "dark",                // UI theme
+  "session_id": "frontend_1727456789"
+}
+
+📤 BACKEND RESPONSES (Backend Must Update These for Frontend):
+
+backend:trading_performance
+Format: JSON Object (Performance Metrics for Frontend Dashboard)
+{
+  "timestamp": "ISO8601",
+  "daily_pnl": 1234.56,
+  "weekly_pnl": 5678.90,
+  "monthly_pnl": 12345.67,
+  "total_pnl": 25000.00,
+  "win_rate": 0.87,               // 87% success rate
+  "avg_trade_duration": 45,       // Average minutes per trade
+  "sharpe_ratio": 1.85,
+  "max_drawdown": 0.03,           // 3% maximum drawdown
+  "total_trades": 125,
+  "winning_trades": 109,
+  "losing_trades": 16,
+  "avg_win": 156.78,              // Average profit per winning trade
+  "avg_loss": -89.45,             // Average loss per losing trade
+  "current_positions": 3,
+  "portfolio_value": 125430.50,
+  "cash_balance": 25000.00,
+  "buying_power": 120430.50
+}
+
+backend:grok_candidates
+Format: JSON Array (AI Trading Candidates for Frontend)
+[
+  {
+    "symbol": "NVDA",
+    "score": 0.95,
+    "recommendation": "STRONG_BUY", // STRONG_BUY, BUY, HOLD, SELL, STRONG_SELL
+    "reason": "GPU demand surge, AI dominance expected",
+    "target_price": 550.00,
+    "current_price": 440.00,
+    "expected_return": 0.25,      // 25% expected return
+    "risk_level": 3,              // 1-5 risk scale
+    "confidence": 0.92,
+    "time_horizon": "60min",      // 15min, 30min, 60min, 1D, 1W
+    "generated_at": "ISO8601",
+    "expires_at": "ISO8601"
+  }
+]
+
+backend:active_orders
+Format: JSON Array (Live Orders for Frontend Trading View)
+[
+  {
+    "order_id": "alpaca_12345",
+    "symbol": "AAPL",
+    "side": "BUY",
+    "quantity": 50,
+    "filled_qty": 25,
+    "order_type": "LIMIT",
+    "limit_price": 180.25,
+    "status": "PARTIALLY_FILLED",  // NEW, PENDING_NEW, ACCEPTED, PARTIALLY_FILLED, FILLED, CANCELED, REJECTED
+    "created_at": "ISO8601",
+    "updated_at": "ISO8601",
+    "source": "autotrading",       // autotrading, manual, grok_signal, ml_prediction
+    "estimated_value": 9012.50,
+    "fees": 0.50
+  }
+]
+
+backend:recent_trades
+Format: JSON Array (Recent Executed Trades for Frontend)
+[
+  {
+    "trade_id": "trade_1727456789",
+    "symbol": "AAPL",
+    "side": "BUY",
+    "quantity": 50,
+    "price": 180.25,
+    "value": 9012.50,
+    "fees": 0.50,
+    "pnl": 257.50,                // Realized P&L if applicable
+    "pnl_pct": 0.0286,           // 2.86% return
+    "executed_at": "ISO8601",
+    "source": "ml_prediction",    // autotrading, manual, grok_signal, ml_prediction
+    "strategy": "AGGRESSIVE",
+    "session_id": "backend_worker"
+  }
+]
+
+backend:portfolio_summary
+Format: JSON Object (Current Portfolio Status for Frontend)
+{
+  "timestamp": "ISO8601",
+  "total_value": 125430.50,
+  "cash_balance": 25000.00,
+  "invested_amount": 100430.50,
+  "day_change": 1234.56,
+  "day_change_pct": 0.0099,       // 0.99%
+  "positions_count": 3,
+  "largest_position": {
+    "symbol": "AAPL",
+    "value": 35000.00,
+    "weight": 0.28              // 28% of portfolio
+  },
+  "sector_allocation": {
+    "Technology": 0.60,
+    "Healthcare": 0.25,
+    "Finance": 0.15
+  },
+  "risk_level": "MEDIUM",         // LOW, MEDIUM, HIGH
+  "diversification_score": 0.75   // 0-1 diversification quality
+}
+
+backend:alerts_active
+Format: JSON Array (Active Alerts for Frontend Notifications)
+[
+  {
+    "alert_id": "alert_1727456789",
+    "type": "PRICE_ALERT",         // PRICE_ALERT, PORTFOLIO_ALERT, TRADE_ALERT, SYSTEM_ALERT
+    "severity": "WARNING",         // INFO, WARNING, CRITICAL
+    "symbol": "AAPL",
+    "title": "Price Alert Triggered",
+    "message": "AAPL price reached $200.00 threshold",
+    "triggered_at": "ISO8601",
+    "acknowledged": false,
+    "auto_dismiss": true,
+    "expires_at": "ISO8601",
+    "action_required": false
+  }
+]
+
+backend:system_health
+Format: JSON Object (System Health for Frontend Monitoring)
+{
+  "timestamp": "ISO8601",
+  "status": "HEALTHY",            // HEALTHY, WARNING, ERROR, OFFLINE
+  "redis_latency_ms": 2.5,
+  "alpaca_api_status": "ACTIVE",  // ACTIVE, DEGRADED, ERROR, OFFLINE
+  "database_status": "ACTIVE",
+  "ml_models_status": "ACTIVE",
+  "grok_api_status": "ACTIVE",
+  "last_trade_execution": "ISO8601",
+  "pending_orders_count": 3,
+  "active_sessions": ["frontend_1727456789"],
+  "memory_usage_mb": 256,
+  "cpu_usage_pct": 15.4,
+  "uptime_hours": 72.5
+}
+
+🤖 ML & PREDICTION KEYS
+=======================
+
+✅ predictions_current
+Format: JSON Object
+{
+  "AAPL": {
+    "15": 160.50,
+    "30": 162.00,
+    "60": 165.00
+  }
+}
+
+✅ predictions_pending
+Format: JSON Array
+[
+  {
+    "ticker": "AAPL",
+    "horizon": "15",
+    "predicted": 160.00,
+    "timestamp": "ISO8601",
+    "eta": "ISO8601"
+  }
+]
+
+✅ model_trained
+Format: String
+Values: "true" | "false"
+
+✅ prediction_quality_metrics_history
+Format: JSON Array
+[
+  {
+    "time": "ISO8601",
+    "window_hours": 24,
+    "per_horizon": {
+      "15": {
+        "count": 22,
+        "mae": 148.42,
+        "mape": 1.93,
+        "rmse": 216.59,
+        "avg_deviation": 1.93
+      }
+    }
+  }
+]
+
+✅ ml_training_status
+Format: JSON Object (Live Training Progress für Frontend)
+{
+  "active": true/false,
+  "stage": "query_data|training_horizon_15|training_horizon_30|training_horizon_60|complete|failed",
+  "progress": 0.75,
+  "trigger": "manual|deviation|scheduled",
+  "event": "start|horizon_trained|finished|failed",
+  "detail": "Training 15min horizon - MAE: 148.42",
+  "started": "ISO8601",
+  "updated": "ISO8601"
+}
+
+✅ ml_training_log
+Format: JSON Array (Rolling 50 Training Events)
+[
+  {
+    "time": "ISO8601",
+    "event": "training_started|model_trained|training_failed",
+    "trigger": "manual|deviation|scheduled",
+    "detail": "Multi-horizon training completed - MAE 15min: 148.42",
+    "metrics": {
+      "15": {"mae": 148.42, "mape": 1.93, "r2": 0.85, "rows": 1500},
+      "30": {"mae": 156.78, "mape": 2.14, "r2": 0.82, "rows": 1500},
+      "60": {"mae": 165.23, "mape": 2.45, "r2": 0.79, "rows": 1500}
+    }
+  }
+]
+
+✅ model_metrics_history
+Format: JSON Array (Rolling 30 Training Sessions)
+[
+  {
+    "time": "ISO8601",
+    "trigger": "deviation|manual|scheduled",
+    "metrics": {
+      "15": {"mae": 148.42, "mape": 1.93, "r2": 0.85, "rows": 1500},
+      "30": {"mae": 156.78, "mape": 2.14, "r2": 0.82, "rows": 1500},
+      "60": {"mae": 165.23, "mape": 2.45, "r2": 0.79, "rows": 1500}
+    }
+  }
+]
+
+✅ model_paths_multi
+Format: JSON Object (Modell-Pfade für Multi-Horizon)
+{
+  "15": "./autogluon_model_15",
+  "30": "./autogluon_model_30", 
+  "60": "./autogluon_model_60"
+}
+
+✅ model_features_multi
+Format: JSON Object (Feature-Schema pro Horizon)
+{
+  "15": ["ticker_AAPL", "ticker_MSFT", "open", "high", "low", "volume", "prev_close", "grok_sentiment"],
+  "30": ["ticker_AAPL", "ticker_MSFT", "open", "high", "low", "volume", "prev_close", "grok_sentiment"], 
+  "60": ["ticker_AAPL", "ticker_MSFT", "open", "high", "low", "volume", "prev_close", "grok_sentiment"]
+}
+
+✅ last_training_stats
+Format: JSON Object (Letzte Training-Session Details)
+{
+  "time": "ISO8601",
+  "trigger": "deviation",
+  "raw_rows": 15420,
+  "filtered_rows": 14800,
+  "clean_rows": 14500,
+  "tickers_included": ["AAPL", "MSFT", "NVDA"],
+  "tickers_excluded": ["META", "TSLA"],
+  "min_rows": 150,
+  "degraded_mode": false,
+  "status": "success|failed",
+  "started": "ISO8601",
+  "metrics": {
+    "15": {"mae": 148.42, "mape": 1.93, "r2": 0.85, "rows": 1500},
+    "30": {"mae": 156.78, "mape": 2.14, "r2": 0.82, "rows": 1500},
+    "60": {"mae": 165.23, "mape": 2.45, "r2": 0.79, "rows": 1500}
+  }
+}
+
+🧠 ENHANCED ML ENDPOINTS (NEU - Frontend Integration)
+====================================================
+
+backend:ml_predictions_enhanced
+Format: JSON Object (Enhanced Predictions for Frontend Charts)
+{
+  "timestamp": "ISO8601",
+  "predictions": {
+    "AAPL": {
+      "current_price": 180.25,
+      "predictions": {
+        "15min": {
+          "price": 182.40,
+          "confidence": 0.89,
+          "change_pct": 1.19,
+          "trend": "BULLISH",          // BULLISH, BEARISH, NEUTRAL
+          "volatility": "LOW"          // LOW, MEDIUM, HIGH
+        },
+        "30min": {
+          "price": 184.15,
+          "confidence": 0.85,
+          "change_pct": 2.16,
+          "trend": "BULLISH",
+          "volatility": "LOW"
+        },
+        "60min": {
+          "price": 186.50,
+          "confidence": 0.82,
+          "change_pct": 3.47,
+          "trend": "BULLISH", 
+          "volatility": "MEDIUM"
+        }
+      },
+      "recommendation": "BUY",       // BUY, SELL, HOLD
+      "strength": 0.89,              // 0-1 signal strength
+      "risk_level": "LOW"            // LOW, MEDIUM, HIGH
+    }
+  }
+}
+
+backend:ml_trading_signals
+Format: JSON Array (ML Trading Signals for AutoTrading)
+[
+  {
+    "signal_id": "ml_signal_1727456789",
+    "ticker": "AAPL",
+    "action": "BUY",              // BUY, SELL, HOLD
+    "strength": 0.89,             // 0-1 signal strength
+    "confidence": 0.92,           // 0-1 model confidence
+    "predicted_return": 0.0347,   // 3.47% expected return
+    "time_horizon": "60min",      // Best timeframe for this signal
+    "target_price": 186.50,       // Predicted target
+    "current_price": 180.25,      // Entry price
+    "stop_loss": 175.80,          // Suggested stop loss
+    "generated_at": "ISO8601",
+    "expires_at": "ISO8601",
+    "used": false                 // Has backend acted on this signal?
+  }
+]
+
+📊 DATA & ANALYTICS KEYS
+========================
+
+✅ market_data
+Format: JSON Object
+{
+  "AAPL": {
+    "price": 150.00,
+    "timestamp": "ISO8601",
+    "source": "twelvedata"
+  }
+}
+
+✅ market_source_stats
+Format: JSON Object (Enhanced Multi-API Stats)
+{
+  "time": "ISO8601",
+  "finnhub": 22,
+  "twelvedata": 16,
+  "fmp": 0,
+  "marketstack": 8,
+  "yfinance": 21,
+  "stub": 0,
+  "failed": 0
+}
+
+✅ multi_api_enhanced_data
+Format: JSON Object (Aggregated Multi-Source Data)
+{
+  "AAPL": {
+    "price": 255.46,
+    "open": 254.12,
+    "high": 256.78,
+    "low": 253.89,
+    "change": 1.34,
+    "change_pct": 0.53,
+    "volume": 45000000,
+    "primary_source": "finnhub",
+    "sources_count": 2,
+    "sources_used": ["finnhub", "twelvedata"],
+    "market_cap": 3900000000000,
+    "pe_ratio": 28.5,
+    "timestamp": "ISO8601"
+  }
+}
+
+✅ multi_api_enhanced_stats
+Format: JSON Object (Multi-API Performance Stats)
+{
+  "timestamp": "ISO8601",
+  "finnhub": {
+    "success": 20,
+    "errors": 0
+  },
+  "fmp": {
+    "success": 0,
+    "errors": 1
+  },
+  "marketstack": {
+    "success": 15,
+    "errors": 0
+  },
+  "total_tickers": 22,
+  "tickers_with_data": 20,
+  "coverage_pct": 90.9
+}
+
+✅ dynamic_tickers
+Format: JSON Array
+["AAPL", "MSFT", "NVDA", "GOOGL", ...]
+
+✅ grok_topstocks_prediction
+Format: JSON Object
+{
+  "time": "ISO8601",
+  "items": [
+    {
+      "ticker": "AAPL",
+      "expected_gain": 0.05,
+      "sentiment": 0.8,
+      "reason": "Strong earnings expected"
+    }
+  ]
+}
+
+✅ yfinance_enhanced:{TICKER}
+Format: JSON Object (per Ticker)
+{
+  "ticker": "AAPL",
+  "timestamp": "ISO8601",
+  "historical_data": [
+    {
+      "date": "2025-09-27",
+      "ticker": "AAPL",
+      "open": 150.00,
+      "high": 152.00,
+      "low": 149.00,
+      "close": 151.50,
+      "volume": 45000000,
+      "sma_20": 148.50,
+      "sma_50": 145.20,
+      "sma_200": 140.80,
+      "rsi": 65.4,
+      "macd": 2.1,
+      "macd_signal": 1.8,
+      "bb_upper": 155.00,
+      "bb_lower": 142.00,
+      "volume_ratio": 1.2
+    }
+  ],
+  "fundamentals": {
+    "market_cap": 2500000000000,
+    "pe_ratio": 28.5,
+    "peg_ratio": 1.2,
+    "price_to_book": 8.5,
+    "beta": 1.1,
+    "debt_to_equity": 1.8,
+    "dividend_yield": 0.005,
+    "sector": "Technology",
+    "industry": "Consumer Electronics"
+  },
+  "news": [
+    {
+      "title": "Apple announces new AI features",
+      "publisher": "Reuters",
+      "published": "ISO8601",
+      "sentiment": null
+    }
+  ],
+  "data_points": 365
+}
+
+✅ yfinance_enhanced_status
+Format: JSON Object
+{
+  "timestamp": "ISO8601",
+  "tickers_processed": 22,
+  "success_count": 20,
+  "error_count": 2,
+  "next_update": "ISO8601"
+}
+
+🔧 SYSTEM MONITORING KEYS
+=========================
+
+✅ risk_status
+Format: JSON Object
+{
+  "notional_today": 1250.00,
+  "last_reset": "2025-09-26",
+  "cooldowns": {
+    "AAPL": "ISO8601"
+  }
+}
+
+✅ retrain_status
+Format: JSON Object
+{
+  "last_retrain": "ISO8601",
+  "trigger": "deviation",
+  "pending": false
+}
+
+✅ deviation_tracker
+Format: JSON Array (Track prediction deviations)
+
+🎯 CELERY TASKS (Enhanced with Frontend Monitoring)
+===================================================
+- fetch_data: Every 5 minutes
+- generate_predictions: Every 15 minutes  
+- trade_bot: Every 10 minutes
+- monitor_autotrading_frontend: Every minute
+- system_heartbeat: Every 30 seconds
+- sync_frontend_settings: Every 2 minutes (NEU - Monitor frontend:* keys)
+- process_manual_orders: Every 30 seconds (NEU - Process frontend:manual_orders)
+- update_backend_responses: Every 30 seconds (NEU - Update backend:* keys)
+- emergency_handler: Every 10 seconds (NEU - Monitor frontend:emergency_actions)
+- performance_calculator: Every 5 minutes (NEU - Calculate backend:trading_performance)
+
+🚨 CRITICAL BACKEND ACTIONS REQUIRED
+====================================
+
+1. **Monitor Frontend Settings:**
+   - Read frontend:trading_config every 2 minutes
+   - Apply to internal trading_settings and risk_settings
+   - Respect cash_reserve and trading_capital limits
+   - Honor paper_mode vs live_mode switching
+
+2. **Process Manual Orders:**
+   - Check frontend:manual_orders every 30 seconds
+   - Execute PENDING orders through Alpaca API
+   - Update order status to SUBMITTED/FILLED/REJECTED
+   - Add to trades_log when executed
+
+3. **Respect Trading Restrictions:**
+   - Check excluded_tickers in frontend:portfolio_settings
+   - Never trade blacklisted symbols
+   - Respect max_position_pct and diversification targets
+   - Apply stop_loss_pct and take_profit_pct from frontend:trading_config
+
+4. **Emergency Actions:**
+   - Monitor frontend:emergency_actions every 10 seconds
+   - Execute STOP_ALL_TRADING immediately
+   - CLOSE_ALL_POSITIONS must liquidate everything
+   - CANCEL_ALL_ORDERS must cancel pending orders
+   - Update autotrading:backend_status accordingly
+
+5. **Update Frontend Data:**
+   - Update backend:trading_performance every 5 minutes
+   - Update backend:active_orders in real-time
+   - Update backend:recent_trades when trades execute
+   - Update backend:portfolio_summary after position changes
+   - Update backend:system_health every minute
+
+6. **ML Integration:**
+   - Use ML signals from backend:ml_trading_signals
+   - Respect ml_confidence_threshold from frontend:trading_config
+   - Combine ML, Grok, and TA signals per frontend:bot_strategy
+   - Update backend:ml_predictions_enhanced for charts
+
+7. **Risk Management Enhanced:**
+   - Apply aggressiveness level to position sizing
+   - Use risk_level from frontend:bot_strategy
+   - Respect cash_reserve (never trade reserved cash)
+   - Apply max_daily_trades limit from frontend:trading_config
+
+🚨 CRITICAL NOTES (Updated)
+===========================
+1. Market Hours Validation: All trading stops when US market closed
+2. Session Management: Multiple frontend sessions supported with full state sync
+3. Risk Limits: Enhanced with frontend-driven controls and ML confidence
+4. Frontend Communication: Complete bidirectional sync required
+5. Backend Compliance: Must honor ALL frontend:* settings
+6. Emergency Override: frontend:emergency_actions takes precedence over all logic
+7. Paper Mode: Respect paper_mode flag - no real money when true
+8. Cash Management: Never exceed trading_capital, always preserve cash_reserve
+
+📍 REDIS CONNECTION
+===================
+Host: redis (Docker internal)
+Port: 6379
+Password: pass123
+Database: 0
+Max Connections: 100
+Connection Pool: 20
+
+Last Updated: 2025-09-28
+System: QBot Enhanced Trading Suite v2.1 with Complete Frontend-Backend Integration

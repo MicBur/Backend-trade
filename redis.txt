@@ -1,0 +1,841 @@
+# Qt Tradebot: Redis-Daten für das Frontend
+
+## 1. Marktdaten (Dashboard)
+Key: market_data
+Format:
+{
+  "AAPL": {"price": 234.07, "change": 4.04, "change_percent": 1.7563},
+  "NVDA": {...},
+  ...
+}
+
+## 2. Candlestick-Daten (Charts)
+Key: chart_data_<TICKER>
+Format:
+[
+  {"timestamp": ..., "open": ..., "high": ..., "low": ..., "close": ..., "volume": ...},
+  ...
+]
+
+## 3. Prognosen (Charts)
+Key: predictions_<TICKER>
+Format:
+[
+  {"timestamp": ..., "predicted_price": ...},
+  ...
+]
+
+## 4. Portfolio-Daten
+Key: portfolio_equity
+Format:
+[
+  {"timestamp": ..., "equity_value": ...},
+  ...
+]
+
+Key: portfolio_positions
+Format:
+[
+  {"ticker": ..., "qty": ..., "avg_price": ..., "side": ...},
+  ...
+]
+
+## 5. Aktive Orders (Trades)
+Key: active_orders
+Format:
+[
+  {"ticker": ..., "side": ..., "price": ..., "status": ..., "timestamp": ...},
+  ...
+]
+
+## 6. Modell-Status (Settings)
+Key: model_trained
+Wert: true oder false (Boolean) – nicht mehr String
+
+Key: model_path
+Wert: "./autogluon_model"
+
+# Verbindung
+Host: <deine-server-ip>
+Port: 6379
+Passwort: pass123
+
+
+## 7. Alpaca-API und Trading-Modus
+Key: alpaca_api_key
+Wert: <dein Alpaca API Key>
+
+Key: alpaca_secret
+Wert: <dein Alpaca Secret>
+
+Key: alpaca_mode
+Wert: "live" oder "paper"
+
+
+## 14. Alpaca Account
+Key: alpaca_account
+Format:
+{
+  "portfolio_value": "125430.50",
+  "buying_power": "25000.00", 
+  "equity": "125430.50",
+  "day_trade_buying_power": "100000.00",
+  "daytrade_count": "2",
+  "trading_blocked": false,
+  "account_blocked": false,
+  "pattern_day_trader": true
+}
+
+## 15. Alpaca Positionen
+Key: alpaca_positions
+Format:
+[
+  {"symbol": "AAPL", "qty": "100", "avg_entry_price": "150.25", "market_value": "15025.00", "unrealized_pl": "275.00"},
+  ...
+]
+
+## 16. Alpaca Orders
+Key: alpaca_orders
+Format:
+[
+  {"id": "12345", "symbol": "AAPL", "side": "buy", "qty": "10", "filled_qty": "10", "status": "filled", "created_at": "2025-09-13T10:00:00Z"},
+  ...
+]
+
+
+## 8. Grok-Top10 Empfehlungen
+Key: grok_top10
+Format:
+[
+  {"ticker": "AAPL", "score": 0.92, "reason": "AI Momentum, Earnings Beat"},
+  {"ticker": "NVDA", "score": 0.89, "reason": "Chip Rally, Upgrades"},
+  ...
+]
+
+## 9. Grok Deeper Search
+Key: grok_deepersearch
+Format:
+[
+  {
+    "ticker": "AAPL",
+    "sentiment": 0.73,            // Float 0..1 (zwei Dezimalstellen empfohlen)
+    "explanation_de": "Deutsche Kurz-Erklärung (Softlimit ~60 Wörter, längere Texte werden gekürzt)."
+  },
+  ... (max 10 Einträge)
+]
+
+Beschreibung:
+- Liefert vertiefte Research-Auswahl (max 10 große US-Aktien) mit 7-Tage-Chance Einschätzung.
+- sentiment: Modell-/LLM-basierter Scoring-Wert (0 = negativ, 1 = sehr positiv / chancenreich).
+- explanation_de: frei formulierte deutsche Begründung; Softlimit 60 Wörter (Backend kürzt nur, füllt nichts auf).
+- Aktualisierung: 1x täglich automatisch (Cron 08:10 UTC) oder manuell via Task.
+- Task: fetch_grok_deepersearch
+]
+
+## 9b. Grok Top Stocks Prognose
+Key: grok_topstocks_prediction
+Format:
+{
+  "time": "2025-09-20T08:20:15Z",
+  "items": [
+    {"ticker": "AAPL", "expected_gain": 2.4, "sentiment": 0.82, "reason": "Kurzbegründung ..."},
+    {"ticker": "MSFT", "expected_gain": 1.9, "sentiment": 0.78, "reason": "..."}
+  ]
+}
+Beschreibung:
+- Erweiterte Modell/LLM-gestützte Auswahl mit erwarteter prozentualer Performance.
+- expected_gain: geschätzter Kursanstieg in Prozent (ohne % Zeichen, kann auch negativ sein falls Modell unsicher / später erweiterbar).
+- sentiment: 0..1 Score (0 = negativ, 1 = sehr positiv / konstruktiv).
+- reason: komprimierte deutschsprachige Herleitung (~40–50 Wörter, Backend kürzt >50 Wörter).
+- Aktualisierung: täglich 08:20 UTC (Cron) oder manuell Task fetch_grok_topstocks.
+- Fügt Ticker dynamisch zu dynamic_tickers hinzu (Erweiterung des Universums).
+
+
+## 10. ML/AutoGluon Status (Settings)
+Key: ml_status
+Format:
+{
+  "training_active": false,
+  "last_training": "2025-09-13T10:30:00Z",
+  "training_progress": 0.75,
+  "data_points": 2880,
+  "model_accuracy": 0.87,
+  "next_scheduled": "2025-09-14T09:00:00Z"
+}
+
+Key: ml_training_log
+Format:
+[
+  {"timestamp": "2025-09-13T10:30:00Z", "event": "Training started", "details": "2880 data points"},
+  {"timestamp": "2025-09-13T10:35:00Z", "event": "Training completed", "details": "Accuracy: 0.87"},
+  ...
+]
+
+## 11. Grok Status (Settings)
+Key: grok_status
+Format:
+{
+  "fetching_active": false,
+  "last_fetch": "2025-09-13T09:05:00Z",
+  "fetch_count": 15,
+  "api_calls_today": 45,
+  "next_scheduled": "2025-09-14T09:05:00Z",
+  "last_method": "sdk" | "http",              // Quelle der letzten deepersearch (neu)
+  "health": {                                   // Gesundheitsstatus (neu)
+    "sdk_ok": true,
+    "http_ok": true,
+    "last_check": "2025-09-20T12:15:00Z",
+    "error": null
+  }
+}
+
+Key: grok_fetch_log
+Format:
+[
+  {"timestamp": "2025-09-13T09:05:00Z", "event": "Grok fetch started", "details": "Top10 + DeepSearch"},
+  {"timestamp": "2025-09-13T09:06:00Z", "event": "Grok fetch completed", "details": "10 recommendations"},
+  ...
+]
+
+## 12. Manual Triggers (Settings)
+Key: manual_trigger_grok
+Wert: "true" oder "false" (Frontend setzt auf "true" zum Auslösen)
+
+Key: manual_trigger_ml
+Wert: "true" oder "false" (Frontend setzt auf "true" zum Auslösen)
+
+Key: manual_trigger_status
+Format:
+{
+  "grok_requested": false,
+  "grok_running": false,
+  "ml_requested": false,
+  "ml_running": false,
+  "last_manual_grok": "2025-09-13T14:20:00Z",
+  "last_manual_ml": "2025-09-13T14:15:00Z"
+}
+
+## 13. Schedule Settings (Settings)
+Key: grok_schedule
+Format:
+{
+  "enabled": true,
+  "hour": 9,
+  "minute": 5,
+  "interval_minutes": 60,
+  "weekdays_only": true
+}
+
+Key: ml_schedule
+Format:
+{
+  "enabled": true,
+  "hour": 2,
+  "minute": 0,
+  "interval_hours": 6,
+  "weekdays_only": false
+}
+
+## 17. System Status (Dashboard)
+Key: system_status
+Format:
+{
+  "redis_connected": true,
+  "postgres_connected": true,
+  "finnhub_api_active": true,
+  "alpaca_api_active": true,
+  "grok_api_active": true,
+  "yfinance_api_active": true,
+  "worker_running": true,
+  "last_heartbeat": "2025-09-13T14:25:30Z",
+  "uptime_seconds": 86400
+}
+
+## 18. Error Logs (Settings)
+Key: error_log
+Format:
+[
+  {"timestamp": "2025-09-13T14:20:00Z", "level": "ERROR", "component": "ML", "message": "Training failed: insufficient data"},
+  {"timestamp": "2025-09-13T14:15:00Z", "level": "WARNING", "component": "Grok", "message": "API rate limit reached"},
+  ...
+]
+
+## 19. Performance Metrics (Dashboard)
+Key: performance_metrics
+Format:
+{
+  "api_response_times": {
+    "finnhub_avg_ms": 245,
+    "alpaca_avg_ms": 189,
+    "grok_avg_ms": 1250
+  },
+  "data_freshness": {
+    "market_data_age_seconds": 45,
+    "portfolio_age_seconds": 120,
+    "predictions_age_minutes": 15
+  },
+  "memory_usage_mb": 512,
+  "cpu_usage_percent": 23.5
+}
+
+## 20. Notifications (Settings)
+Key: notifications
+Format:
+[
+  {"id": 1, "type": "success", "title": "ML Training Complete", "message": "Model trained with 87% accuracy", "timestamp": "2025-09-13T14:30:00Z", "read": false},
+  {"id": 2, "type": "warning", "title": "Grok API Limit", "message": "Approaching daily API limit", "timestamp": "2025-09-13T14:25:00Z", "read": true},
+  ...
+]
+
+Key: notification_settings
+Format:
+{
+  "ml_completion": true,
+  "grok_completion": true,
+  "error_alerts": true,
+  "performance_warnings": true,
+  "daily_summary": true
+}
+
+## 21. Dynamische Tickerliste
+Key: dynamic_tickers
+Format:
+[
+  "AAPL", "NVDA", "..."  // Basis + aus Grok + Portfolio kombiniert
+]
+
+## 22. Aktuelle Modellvorhersagen (Multi-Horizon 15/30/60)
+Key: predictions_current
+Format:
+{
+  "AAPL": {
+    "current_price": 234.10,
+    "timestamp": "2025-09-20T14:45:00Z",
+    "horizons": {
+      "15": {"predicted_price": 234.40, "change_pct": 0.0013, "eta": "2025-09-20T15:00:00Z"},
+      "30": {"predicted_price": 234.70, "change_pct": 0.0026, "eta": "2025-09-20T15:15:00Z"},
+      "60": {"predicted_price": 235.40, "change_pct": 0.0056, "eta": "2025-09-20T15:45:00Z"}
+    }
+  },
+  ...
+}
+Beschreibung:
+- Jeder Ticker speichert mehrere Horizonte (Keys als Strings: "15","30","60").
+- change_pct bezieht sich auf current_price.
+- eta = Zielzeitpunkt für Abgleich (Retrain Deviation Check).
+
+## 23. Ausstehende Vorhersagen zur Abweichungsprüfung (Multi-Horizon)
+Key: predictions_pending
+Format:
+[
+  {"ticker": "AAPL", "horizon": "60", "predicted": 235.40, "timestamp": "2025-09-20T14:45:00Z", "eta": "2025-09-20T15:45:00Z"},
+  {"ticker": "AAPL", "horizon": "15", "predicted": 234.40, "timestamp": "2025-09-20T14:45:00Z", "eta": "2025-09-20T15:00:00Z"},
+  ...
+]
+Hinweise:
+- retrain_check prüft eta; Eintrag entfällt nach Verarbeitung.
+- Migration: Alte Einträge mit horizon_minutes werden automatisch erweitert (horizon, eta).
+
+## 24. Abweichungs-Tracking (für Retrain Trigger)
+Key: deviation_tracker
+Format:
+[
+  {
+    "ticker": "AAPL",
+    "predicted": 235.40,
+    "actual": 232.10,
+    "deviation": 0.0142,
+    "horizon_minutes": 60,
+    "prediction_time": "2025-09-13T13:45:00Z",
+    "actual_time": "2025-09-13T14:45:10Z"
+  },
+  ...
+]
+
+## 24b. Modell Metrik Historie
+Key: model_metrics_history
+Format (Liste, max 30 Einträge):
+[
+  {
+    "time": "2025-09-20T10:20:05Z",
+    "trigger": "manual",
+    "metrics": {
+      "15": {"mae": 0.42, "mape": 0.018, "r2": 0.73, "rows": 11200},
+      "30": {"mae": 0.55, "mape": 0.022, "r2": 0.69, "rows": 11050},
+      "60": {"mae": 0.88, "mape": 0.031, "r2": 0.61, "rows": 10980}
+    }
+  },
+  ...
+]
+Beschreibung:
+- Rolling Window (ältere abgeschnitten > 30).
+- rows = Trainingszeilen je Horizon nach Encoding.
+
+## 24c. Multi-Model Pfade
+Key: model_paths_multi
+Format:
+{
+  "15": "./autogluon_model_15",
+  "30": "./autogluon_model_30",
+  "60": "./autogluon_model_60"
+}
+Hinweis: model_path verweist weiterhin (Backward Compatibility) auf 60m Modell.
+
+## 25. Retrain Status
+Key: retrain_status
+Format:
+{
+  "last_retrain": "2025-09-13T09:00:10Z",
+  "trigger": "daily" | "manual" | "deviation",
+  "pending": false
+}
+
+## 26. Trading Einstellungen
+Key: trading_settings
+Format:
+{
+  "enabled": true,
+  "buy_threshold_pct": 0.05,
+  "sell_threshold_pct": 0.05,
+  "max_position_per_trade": 1
+}
+
+## 27. Trading Status
+Key: trading_status
+Format:
+{
+  "last_run": "2025-09-13T14:50:00Z",
+  "last_error": null
+}
+
+## 28. Trade Log
+Key: trades_log
+Format:
+[
+  {
+    "time": "2025-09-13T14:50:05Z",
+    "ticker": "AAPL",
+    "side": "buy",
+    "qty": 1,
+    "current_price": 234.10,
+    "predicted_price": 235.40,
+    "change_pct": 0.0056,
+    "order_response": {"id": "...", "status": "accepted"}
+  },
+  ...
+]
+
+Hinweise zu Retention / Limits:
+- trades_log: maximal letzte 200 Einträge (FIFO)
+- deviation_tracker: maximal letzte 500 Einträge
+- predictions_pending: wird beim Abarbeiten (nach Ablauf des Horizonts) bereinigt
+
+## 29. Nutzung / Beispiele
+
+**Trading Ein/Aus schalten:**
+
+Option A - Direkt via Redis CLI:
+```bash
+# Trading ausschalten (falls erforderlich)
+SET trading_settings '{"enabled": false, "buy_threshold_pct": 0.05, "sell_threshold_pct": 0.05, "max_position_per_trade": 1}'
+
+# Trading einschalten (Standard)
+SET trading_settings '{"enabled": true, "buy_threshold_pct": 0.05, "sell_threshold_pct": 0.05, "max_position_per_trade": 1}'
+```
+
+Option B - Fehlende REST Endpunkte (noch zu implementieren):
+```http
+POST /api/trading/enable
+POST /api/trading/disable  
+PUT /api/trading/settings
+GET /api/trading/settings
+GET /api/trading/status
+```
+
+**Aktueller Status:** Das System hat vollständige Autotrade-Logik (`trade_bot` Task, Risk Management, Settings), aber **keine HTTP-Endpunkte** für Frontend-Integration. Trading läuft automatisch alle 10 Minuten und ist **per Default aktiviert** (`trading_settings.enabled = true`).
+
+Manuelles Retrain (Celery Task):
+Aufruf von train_model.delay("manual") (oder passenden Endpoint implementieren). Danach aktualisiert sich retrain_status.
+
+Retrain Automatik:
+- retrain_check Task läuft alle 30 Minuten
+- Wenn eine Abweichung > 0.08 (8%) erkannt wird -> train_model("deviation")
+- retrain_status.pending wird vor Start auf true gesetzt und nach Abschluss wieder false
+
+Vorhersage-Zyklus:
+- generate_predictions alle 15 Minuten (1h Horizon)
+- predictions_current: sofort nutzbar für UI
+- predictions_pending: Verwaltung der offenen Vorhersagen bis Zielzeit erreicht
+
+Fehlerdiagnose:
+- trading_status.last_error (derzeit immer null; zukünftige Fehler würden hier erscheinen)
+- retrain_status.trigger zur Nachvollziehbarkeit des letzten Trainingsanstoßes
+
+## 30. Trainings-Diagnose
+Key: training_diagnostics
+Format:
+{
+  "generated": "2025-09-20T10:15:00Z",
+  "window_days": 14,
+  "tickers": [
+    {"ticker": "AAPL", "rows": 1820, "first_time": "2025-09-06T09:30:00Z", "last_time": "2025-09-20T14:45:00Z"},
+    ...
+  ]
+}
+
+Key: last_training_stats
+Format:
+{
+  "time": "2025-09-20T10:20:05Z",
+  "trigger": "manual",
+  "raw_rows": 12450,
+  "filtered_rows": 11890,
+  "clean_rows": 11840,
+  "tickers_included": ["AAPL","MSFT","NVDA"],
+  "tickers_excluded": [{"ticker":"PG","rows":12}, ...],
+  "min_rows": 150,
+  "degraded_mode": false,
+  "status": "success" | "skipped_insufficient_raw" | "skipped_insufficient_clean" | "failed",
+  "started": "2025-09-20T10:15:00Z",
+  "error": "<optional>",
+  "metrics": {
+    "15": {"mae": 0.42, "mape": 0.018, "r2": 0.73, "rows": 11200},
+    "30": {"mae": 0.55, "mape": 0.022, "r2": 0.69, "rows": 11050},
+    "60": {"mae": 0.88, "mape": 0.031, "r2": 0.61, "rows": 10980}
+  }
+}
+
+## 31. Historische Daten Quellen Statistik
+Key: historical_source_stats
+Format:
+{
+  "time": "2025-09-20T11:05:00Z",
+  "inserted": 5230,
+  "tickers": 12,
+  "sources": {
+    "finnhub": 3,
+    "twelvedata": 5,
+    "fmp": 4,
+    "failed": 2
+  }
+}
+Beschreibung:
+- Zählt pro Run wie viele Ticker von welcher Quelle bedient werden konnten.
+- failed: Keine der Quellen lieferte verwertbare Kerzen.
+
+## 32. Historisches Fetch Detail-Log
+Key: historical_fetch_log
+Format (Liste, max 300 Einträge FIFO):
+[
+  {
+    "time": "2025-09-20T12:01:05Z",
+    "ticker": "AAPL",
+    "source": "finnhub" | "twelvedata" | "fmp" | "none",
+    "status": "ok" | "empty" | "http_error" | "api_error" | "exception" | "failed_all",
+    "candles": 480,
+    "http_status": 200,
+    "note": "optional kurzer Hinweis / Fehlermeldung"
+  },
+  ...
+]
+Hinweise:
+- Wird bei jedem Lauf von fetch_historical_data vollständig überschrieben.
+- Dient zur Diagnose warum bestimmte Ticker keine Daten erhalten.
+
+## 33. Backfill Status Historie
+Key: historical_backfill_status
+Format (Liste, max 50 Einträge):
+[
+  {
+    "time": "2025-09-20T12:10:00Z",
+    "ticker": "MSFT",
+    "days": 60,
+    "inserted": 2850,
+    "sources": [
+      {"source": "finnhub", "candles": 900},
+      {"source": "twelvedata", "candles": 1200},
+      {"source": "fmp", "candles": 750}
+    ]
+  },
+  ...
+]
+Benutzung:
+- Celery Task backfill_ticker.delay("AAPL", 60)
+- Ergänzt historische Marktdaten außerhalb des regulären 30-Tage Fensters.
+
+## 34. Risk Settings (Trading Guardrails)
+Key: risk_settings
+Format:
+{
+  "daily_notional_cap": 50000,       // Gesamtvolumen USD pro Tag (0 = deaktiviert)
+  "max_position_per_ticker": 5,      // Anzahl Orders/Positionseröffnungen pro Ticker pro Tag (0 = kein Limit)
+  "cooldown_minutes": 30,            // Pause nach Trade für Ticker (0 = aus)
+  "max_trades_per_run": 3            // Hard Limit pro trade_bot Run (0 = aus)
+}
+
+## 35. Risk Status
+Key: risk_status
+Format:
+{
+  "notional_today": 12345.67,
+  "last_reset": "2025-09-20",
+  "cooldowns": {
+    "AAPL": "2025-09-20T15:05:00Z"
+  }
+}
+Beschreibung:
+- daily_notional_cap Reset erfolgt automatisch bei Tageswechsel UTC.
+- cooldowns enthält earliest-next-trade Timestamp für betroffene Ticker.
+
+## 36. Grok Konfiguration (Environment)
+Die folgenden ENV Variablen steuern Grok-Aufrufe:
+
+GROK_API_KEY        = API Key (Pflicht)
+GROK_BASE_URL       = Basis-URL (Default: https://grok.xai-api.com)
+GROK_INSECURE       = "1" um TLS Zertifikatsprüfung zu deaktivieren (nur zu Debug-Zwecken!)
+GROK_MODEL_ID       = Modell-ID für xai_sdk (Default: grok-4-0709)
+
+Verhalten:
+- fetch_grok_deepersearch_xai versucht zuerst SDK (falls installiert), fällt bei Fehler/leer auf HTTP zurück.
+- grok_status.last_method zeigt an welche Variante zuletzt erfolgreich war.
+- grok_status.health wird durch Task grok_health (manuell/periodisch) aktualisiert.
+
+Sicherheitshinweis: GROK_INSECURE=1 nur in internen Testumgebungen verwenden. In Produktion immer TLS prüfen lassen.
+
+## 37. Feature Imputation & Grok Missing Flags
+Key: feature_imputation
+Format:
+{
+  "time": "2025-09-20T10:20:05Z",
+  "grok_sentiment_median": 0.74,
+  "grok_expected_gain_median": 1.85
+}
+Beschreibung:
+- Während des Trainings werden fehlende Grok Features (sentiment, expected_gain) mit Median-Werten des Trainings-Datasets ersetzt.
+- Diese Median-Werte werden für die Inferenz (generate_predictions) genutzt, um Konsistenz zu wahren.
+- Zusätzlich werden Missing-Indicator Flags als numerische Features gespeichert:
+  - grok_sentiment_missing (0/1)
+  - grok_expected_gain_missing (0/1)
+  Diese Flags sind 1 wenn Originalwert fehlte und durch Median ersetzt wurde.
+
+Hinweis: Falls später weitere externe Features hinzukommen (z.B. News, alternative Signale), sollte das gleiche Muster (Median + *_missing Flag) verwendet werden.
+
+## 38. Retrain Hook (Grok Updates)
+Key (intern, optional): retrain_hook_grok_last
+Wert: ISO Timestamp des letzten durch Grok Daten ausgelösten Retrain Hooks.
+Mechanik:
+- Tasks fetch_grok_deepersearch / fetch_grok_deepersearch_xai / fetch_grok_topstocks lösen bei neuen Items und vorhandenem Modell einen Retrain aus (Trigger: grok_update), sofern der letzte Hook >= 30 Minuten zurückliegt.
+- Cooldown verhindert übermäßige Re-Trainings bei häufigen manuellen Abrufen.
+- retrain_status.pending wird vor Start gesetzt und nach Abschluss durch train_model wieder zurückgesetzt.
+
+## 39. Realtime Market Fetch Erweiterung
+Keys:
+- market_fetch_log
+  Format (Liste, max 400 Einträge FIFO):
+  [
+    {"time": "2025-09-20T18:35:10Z", "ticker": "AAPL", "source": "finnhub", "status": "ok", "note": ""},
+    {"time": "2025-09-20T18:35:10Z", "ticker": "NVDA", "source": "twelvedata", "status": "empty", "note": ""},
+    {"time": "2025-09-20T18:35:10Z", "ticker": "MSFT", "source": "fmp", "status": "ok", "note": ""},
+    {"time": "2025-09-20T18:35:10Z", "ticker": "TSLA", "source": "yfinance", "status": "ok", "note": "snapshot"},
+    {"time": "2025-09-20T18:35:10Z", "ticker": "META", "source": "stub", "status": "ok", "note": "dev stub"}
+  ]
+  status Werte: ok | empty | http_error | api_error | exception | parse_error | failed_all | stub
+  source Werte: finnhub | twelvedata | fmp | yfinance | stub | none
+
+- market_source_stats
+  Format:
+  {
+    "time": "2025-09-21T18:35:10Z",
+    "finnhub": 22,        // Anzahl Ticker deren finaler Preis aus Finnhub kam
+    "twelvedata": 0,      // Aktuell inaktiv (401 API Key Fehler)
+    "fmp": 0,            // Aktuell inaktiv (403 Legacy Endpoint)
+    "yfinance": 0,       // Hinweis: Siehe Anmerkung unten
+    "stub": 0,           // Entwicklungs-Stub (nur wenn aktiviert und nötig)
+    "failed": 0
+  }
+  Bedeutung: Anzahl Ticker im letzten fetch_data Run, deren finaler Preis aus jeweiliger Quelle kam.
+  
+  Hinweis zu yfinance Zählung:
+  - yfinance ist aktiv integriert und erscheint in sources_used sowie source_deviation
+  - Die Zählung in market_source_stats berücksichtigt derzeit nur die "finale" Quelle nach Median-Bestimmung
+  - Da yfinance und finnhub oft sehr ähnliche Preise liefern, wird meist finnhub als "Gewinner" gezählt
+  - Für vollständige Multi-Source Sichtbarkeit siehe sources_used in market_data Einträgen
+
+Environment Flag:
+- PRICE_STUB_ENABLED = "1" aktiviert Entwicklungs-Stub wenn alle echten Quellen für einen Ticker scheitern.
+  Stub generiert pseudo-stabile Preise im Bereich 150–300 USD oder kleine Random-Walk Abweichung vom letzten bekannten Preis.
+  (YFINANCE benötigt keinen Flag – separater Container-Service muss laufen. Interval via ENV YF_INTERVAL_SEC im yfinance Service konfigurierbar.)
+
+Hinweis: Die neue Multi-Source Echtzeit-Logik ersetzt den alten direkten Einzelaufruf (nur Finnhub). Frontend kann market_source_stats für Health Badges nutzen.
+
+Erweiterte Felder in market_data Einträgen (pro Ticker):
+{
+  "price": <Median Preis>,
+  "time": "...",
+  "sources_used": ["finnhub","yfinance","twelvedata","fmp"],
+  "source_deviation": [
+     {"source": "finnhub", "delta_pct": 0.0},
+     {"source": "yfinance", "delta_pct": 0.0003},
+     {"source": "twelvedata", "delta_pct": 0.0012},
+     {"source": "fmp", "delta_pct": -0.0005}
+  ]
+}
+delta_pct: (Quellenpreis - Median)/Median. Erlaubt UI-Anzeige von Daten-Konsistenz (z.B. Warnung > 0.5%).
+
+## 40. Automatischer Backfill Scanner
+Key: auto_backfill_status
+Format (Liste, max 50 Einträge, FIFO):
+[
+  {
+    "time": "2025-09-20T19:05:10Z",
+    "min_rows": 150,
+    "days": 60,
+    "candidates": [
+      {"ticker": "PG", "rows": 42, "backfill_triggered": true},
+      {"ticker": "JNJ", "rows": 95, "backfill_triggered": false}
+    ],
+    "triggered": ["PG"],
+    "remaining_budget": 4
+  },
+  ...
+]
+Beschreibung:
+- Task scan_and_backfill_low_history durchsucht alle Ticker (14d Fenster) nach unzureichenden Zeilen (< min_rows).
+- Löst bis zu max_backfills (Default 5) pro Run backfill_ticker.delay(t, days) aus (Days Default 60).
+- remaining_budget zeigt, wie viele Backfills im Run ungenutzt blieben.
+- candidates enthält sämtliche unter-Threshold Ticker; backfill_triggered true falls in diesem Run gestartet.
+
+Konfiguration über Task-Parameter:
+- min_rows (Default 150)
+- days (Default 60)
+- max_backfills (Default 5)
+
+Nutzung:
+scan_and_backfill_low_history.delay()  // Standard
+scan_and_backfill_low_history.delay(120, 45, 10)  // Angepasste Parameter
+
+Frontend-Idee:
+- Badge anzeigen, wenn triggered Länge > 0 (Backfills aktiv)
+- Tabelle mit Ticker/Rows/Triggered Status für Transparenz.
+
+## 41. Prediction Quality Metrics
+Key: prediction_quality_metrics
+Format:
+{
+  "time": "2025-09-20T19:10:00Z",
+  "window_hours": 24,
+  "per_horizon": {
+    "15": {"count": 120, "mae": 0.42, "mape": 0.018, "rmse": 0.55, "avg_deviation": 0.020},
+    "30": {"count": 110, "mae": 0.55, "mape": 0.022, "rmse": 0.72, "avg_deviation": 0.028},
+    "60": {"count": 95,  "mae": 0.88, "mape": 0.031, "rmse": 1.05, "avg_deviation": 0.036}
+  }
+}
+
+Key: prediction_quality_metrics_history
+Format: Liste der letzten 100 Snapshots (Rolling FIFO)
+[
+  {"time": "...", "window_hours": 24, "per_horizon": {...}},
+  ...
+]
+
+Beschreibung:
+- compute_prediction_quality_metrics aggregiert Abweichungen aus deviation_tracker über window_hours (Default 24) rückwärts.
+- count: Anzahl gültiger Abgleiche (pred & actual vorhanden) pro Horizon.
+- mae: Mittlerer absoluter Fehler (absolute Differenz Preisniveau).
+- mape: Mittlerer prozentualer Fehler (ignoriert Fälle mit actual=0).
+- rmse: Root Mean Squared Error.
+- avg_deviation: Durchschnitt aus dem bereits gespeicherten deviation Feld (redundant zu mape, aber historisch konsistent falls MAPE Filter greift).
+
+Einsatzfälle:
+- Dashboard Karten für Modellqualität je Horizon (Trend via history).
+- Alerting: Wenn mae oder avg_deviation sprunghaft steigt -> Notification.
+
+Geplante Erweiterungen (optional):
+- Rolling Clustering (Ticker-Level Fehleranalyse)
+- Weighted Errors nach Handelsvolumen
+- Trennung nach Session (Regular vs After Hours)
+
+Aufruf Beispiele:
+compute_prediction_quality_metrics.delay()            // 24h Default
+compute_prediction_quality_metrics.delay(6)           // Letzte 6 Stunden
+
+## 42. YFinance Realtime Zusatzquelle
+Keys:
+- yfinance_quotes
+- yfinance_status
+
+Key: yfinance_quotes
+Format:
+{
+  "time": "2025-09-20T19:25:10Z",
+  "prices": {
+    "AAPL": 234.12,
+    "MSFT": 421.55,
+    "NVDA": 1189.44,
+    "AMZN": 231.60
+    // ... weitere Ticker
+  },
+  "count": 21
+}
+Beschreibung:
+- Container-basierter Service (eigene Dockerfile.yfinance) ruft periodisch (Standard alle 60s) die letzten verfügbaren Intraday-Kurse via yfinance ab.
+- Liefert pro Zyklus ein Snapshot der zuletzt beobachteten Close-/Last-Preise pro Ticker.
+- Wird vom fetch_data Aggregator als zusätzliche Quelle 'yfinance' eingelesen und in sources_used / source_deviation berücksichtigt (sofern Preis vorhanden).
+- Aktuell nur für Realtime/aktuelle Minute – kein automatischer Backfill historischer Candles über yfinance (limitiert / nicht notwendig für Grundfunktion).
+
+Key: yfinance_status
+Format:
+{
+  "time": "2025-09-20T19:25:10Z",
+  "tickers_total": 22,
+  "fetched": 21,
+  "errors": [],
+  "interval_sec": 60,
+  "cycle_ms": 1240,
+  "last_error": null
+}
+Feldbeschreibung:
+- tickers_total: Anzahl Ziel-Ticker im Service (Basis + dynamische aus Grok/Portfolio).
+- fetched: Anzahl Ticker mit erfolgreich aktualisiertem Preis in diesem Zyklus.
+- errors: Liste fehlgeschlagener Ticker (z.B. Network, Parsing). Empty = alles ok.
+- interval_sec: Konfigurierte Schlafdauer zwischen Zyklen (ENV YF_INTERVAL_SEC).
+- cycle_ms: (Optional) gemessene Dauer eines Fetch-Zyklus in Millisekunden (nur gesetzt wenn gemessen).
+- last_error: String bei zuletzt aufgetretenem globalem Fehler, sonst null.
+
+Integrationshinweise:
+- Training nutzt derzeit historische Kerzen primär aus Finnhub. Die yfinance Preise fließen (noch) nur in den Realtime-Median ein.
+- Um yfinance mittelbar ins Training zu bringen, kann der finale Median pro Minute zusätzlich in die historische Preistabelle (source='median') geschrieben werden.
+- Kein Backfill für yfinance implementiert – Historie daher weiterhin Finnhub-dominiert (akzeptabel für Stabilität).
+
+Integration-Status (verifiziert 2025-09-20):
+- ✅ yfinance Service läuft und aktualisiert yfinance_quotes erfolgreich
+- ✅ fetch_data liest yfinance Preise und integriert sie in Multi-Source Aggregation
+- ✅ sources_used zeigt yfinance für Ticker mit verfügbaren Preisen (z.B. ["yfinance","finnhub"])
+- ✅ source_deviation berechnet delta_pct für yfinance korrekt
+- ✅ market_fetch_log enthält Einträge mit source "yfinance" und status "ok"
+- ⚠️ market_source_stats zeigt aktuell yfinance=0 (siehe Anmerkung oben zur Zähllogik)
+
+Monitoring / Health:
+- Anwesenheit des Keys yfinance_quotes + aktueller Timestamp (<= 2 * interval_sec alt) signalisiert laufenden Service.
+- Fehlerakkumulation (errors Liste wächst) kann UI-Warnung triggern.
+
+Bekannte Limitierungen:
+- TwelveData: 401 invalid apikey (Schlüssel abgelaufen oder ungültig)
+- FMP: 403 Legacy Endpoint (Endpunkt veraltet, Migration auf /quote/ erforderlich)
+- Beide Quellen liefern derzeit keine verwertbaren Daten
+
+Geplante optionale Erweiterungen:
+- Persistierung einer Roh-Tabelle (market_price_source) je Quelle für Qualitätsvergleiche
+- Rolling Drift Analyse Quelle vs Median  
+- Automatisches Downgrade / Ausschluss einer Quelle bei wiederholten starken Abweichungen > 0.5%
+- Korrektur der market_source_stats Zählung um yfinance explizit zu erfassen
+- TwelveData API-Schlüssel erneuern oder Quelle deaktivieren
+- FMP Migration auf aktuelle Endpunkte (/quote/, /historical-price-full/)
+
+
+
+
+
+
+
+

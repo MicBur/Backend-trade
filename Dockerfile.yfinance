@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libstdc++6 \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir yfinance redis python-dotenv requests
+
+COPY yfinance_service.py /app/yfinance_service.py
+
+ENV REDIS_URL=redis://:pass123@redis:6379/0
+ENV YF_INTERVAL=1
+
+CMD ["python", "yfinance_service.py"]
